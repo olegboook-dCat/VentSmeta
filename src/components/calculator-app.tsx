@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { FolderOpen, Printer, Save, Trash2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { FolderOpen, Printer, Save, Scissors, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { InputsPanel } from "@/components/inputs-panel";
 import { ResultsPanel } from "@/components/results-panel";
@@ -44,6 +45,17 @@ export function CalculatorApp() {
               <p className="font-display text-sm font-medium tracking-tight sm:text-base">ВентСмета</p>
               <p className="truncate text-xs text-muted">Калькулятор вентилируемого фасада</p>
             </div>
+            <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" asChild>
+              <Link to="/cutting">
+                <Scissors />
+                Раскрой
+              </Link>
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="sm:hidden" asChild aria-label="Раскрой">
+              <Link to="/cutting">
+                <Scissors />
+              </Link>
+            </Button>
             <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Проекты">
               <FolderOpen />
             </Button>

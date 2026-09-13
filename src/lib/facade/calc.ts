@@ -91,8 +91,8 @@ export function calculate(project: Project): CalcResult {
   let buildingPerim = 0;
   let height = 0;
   let sillLength = 0;
-  let outerCorners = project.outerCorners;
-  let innerCorners = project.innerCorners;
+  const outerCorners = project.outerCorners;
+  const innerCorners = project.innerCorners;
 
   if (project.inputMode === "walls") {
     grossArea = project.walls.reduce((s, w) => s + Math.max(0, w.width) * Math.max(0, w.height), 0);
