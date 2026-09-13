@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# SSR (TanStack Start + Nitro): при сборке в среде Netlify Nitro сам выбирает
+# пресет `netlify` — статика попадает в `dist`, серверный обработчик в
+# `.netlify/functions-internal`. Раскрой и смета считаются в браузере,
+# данные хранятся в localStorage.
