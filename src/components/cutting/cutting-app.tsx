@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CutList } from "@/components/cutting/cut-list";
+import { Developments } from "@/components/cutting/developments";
 import { NestPreview } from "@/components/cutting/nest-preview";
 import { SHEET_STANDARDS } from "@/lib/cutting/types";
 import { useCutting } from "@/store/cutting";
@@ -163,6 +164,7 @@ export function CuttingApp() {
 
           <main className="flex min-w-0 flex-col gap-6">
             <CutList />
+            <Developments />
             <NestPreview />
           </main>
         </div>
