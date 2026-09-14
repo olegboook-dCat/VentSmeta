@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { foldLines, panelOutline, panelPoint } from "@/lib/cutting/geometry";
 import { buildCutPlan, kimPct, panelWidth, usedArea, type NestOptions } from "@/lib/cutting/nesting";
 import { collectOtsechki } from "@/lib/cutting/model";
@@ -112,7 +114,7 @@ function SheetPreview({ sheet, scale }: { sheet: Sheet; scale: number }) {
 }
 
 export function NestPreview() {
-  const { cuts, sheetH, kerf, allowRotate, standardId } = useCutting();
+  const { cuts, sheetH, kerf, allowRotate, standardId, setKerf, setAllowRotate } = useCutting();
 
   const { plan, opts, L } = useMemo(() => {
     const widths = widthsOfStandard(standardId);
@@ -151,6 +153,24 @@ export function NestPreview() {
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="font-display text-base">Раскрой на листе (для фрезера)</h2>
+
+      {/* Рез и поворот — здесь, рядом с КИМ, чтобы не листать наверх */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-surface-2/60 px-3 py-2">
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-xs text-muted">Рез (пропил), мм</span>
+          <Input
+            inputMode="decimal"
+            className="h-9 w-20"
+            value={String(Math.round(kerf * 1000) / 1000)}
+            onChange={(e) => setKerf(Number(String(e.target.value).replace(",", ".")) || 0)}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Switch checked={allowRotate} onCheckedChange={setAllowRotate} />
+          поворот деталей
+        </label>
+      </div>
+
       {sheets.length ? (
         <p className="mt-1 text-sm text-muted">
           Листов: {sheets.length}
