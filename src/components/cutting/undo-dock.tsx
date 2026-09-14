@@ -1,6 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GripHorizontal, Redo2, Undo2 } from "lucide-react";
-import { useCutting } from "@/store/cutting";
+
+// Горячие клавиши отмены/повтора. В полях ввода не мешаем нативной отмене текста.
+export function useUndoKeyboard(undo: () => void, redo: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === "z" && e.shiftKey) || k === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+}
 
 const POS_KEY = "ventsmeta-undodock-pos";
 const IDLE_MS = 2000; // через столько покоя панель гаснет
@@ -22,14 +42,16 @@ function clampPos(p: Pos): Pos {
   };
 }
 
+interface UndoDockProps {
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
 // Плавающая панель отмены/повтора: полупрозрачная, перетаскивается за круг
 // посередине, проявляется при прокрутке / касании и гаснет в покое.
-export function UndoDock() {
-  const undo = useCutting((s) => s.undo);
-  const redo = useCutting((s) => s.redo);
-  const canUndo = useCutting((s) => s.past.length > 0);
-  const canRedo = useCutting((s) => s.future.length > 0);
-
+export function UndoDock({ undo, redo, canUndo, canRedo }: UndoDockProps) {
   const [pos, setPos] = useState<Pos | null>(null);
   const [active, setActive] = useState(true);
   const dockRef = useRef<HTMLDivElement>(null);

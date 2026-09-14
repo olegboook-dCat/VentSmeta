@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { CutList } from "@/components/cutting/cut-list";
 import { Developments } from "@/components/cutting/developments";
 import { NestPreview } from "@/components/cutting/nest-preview";
 import { PageScroller } from "@/components/cutting/page-scroller";
-import { UndoDock } from "@/components/cutting/undo-dock";
+import { UndoDock, useUndoKeyboard } from "@/components/cutting/undo-dock";
 import { SHEET_STANDARDS } from "@/lib/cutting/types";
 import { useCutting } from "@/store/cutting";
 import { cn } from "@/lib/utils";
@@ -24,24 +24,7 @@ export function CuttingApp() {
   const [entryDraft, setEntryDraft] = useState("");
   const groupSum = s.entries.reduce((a, v) => a + v, 0);
 
-  // Горячие клавиши отмены/повтора. В полях ввода не мешаем нативной отмене.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-      const k = e.key.toLowerCase();
-      if (k === "z" && !e.shiftKey) {
-        e.preventDefault();
-        useCutting.getState().undo();
-      } else if ((k === "z" && e.shiftKey) || k === "y") {
-        e.preventDefault();
-        useCutting.getState().redo();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  useUndoKeyboard(s.undo, s.redo);
 
   function addEntry() {
     if (entryDraft.trim() === "") return;
@@ -179,7 +162,7 @@ export function CuttingApp() {
           </main>
         </div>
         <PageScroller />
-        <UndoDock />
+        <UndoDock undo={s.undo} redo={s.redo} canUndo={s.past.length > 0} canRedo={s.future.length > 0} />
       </div>
     </TooltipProvider>
   );
