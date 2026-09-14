@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Copy, GripVertical, Redo2, Trash2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { angAutoDeg } from "@/lib/cutting/geometry";
@@ -255,10 +255,6 @@ export function CutList() {
   const cuts = useCutting((st) => st.cuts);
   const addCut = useCutting((st) => st.addCut);
   const clearAll = useCutting((st) => st.clearAll);
-  const undo = useCutting((st) => st.undo);
-  const redo = useCutting((st) => st.redo);
-  const canUndo = useCutting((st) => st.past.length > 0);
-  const canRedo = useCutting((st) => st.future.length > 0);
 
   const listRef = useRef<HTMLUListElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -311,12 +307,6 @@ export function CutList() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-base">Отсечки ({cuts.length})</h2>
         <div className="flex items-center gap-1.5">
-          <Button type="button" variant="ghost" size="icon" className="size-9" disabled={!canUndo} onClick={undo} aria-label="Отменить" title="Отменить (Ctrl+Z)">
-            <Undo2 className="size-4" />
-          </Button>
-          <Button type="button" variant="ghost" size="icon" className="size-9" disabled={!canRedo} onClick={redo} aria-label="Повторить" title="Повторить (Ctrl+Shift+Z)">
-            <Redo2 className="size-4" />
-          </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => addCut()}>
             ＋ отсечка
           </Button>
