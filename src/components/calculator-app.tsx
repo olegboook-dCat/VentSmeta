@@ -13,16 +13,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { UndoDock, useUndoKeyboard } from "@/components/cutting/undo-dock";
 import { money, num } from "@/lib/facade/format";
 import { calculate } from "@/lib/facade/calc";
 import { useProject } from "@/store/project";
 import { cn } from "@/lib/utils";
 
 export function CalculatorApp() {
-  const { project, saved, saveCurrent, loadSaved, deleteSaved, newProject, applyPreset, presets } = useProject();
+  const { project, saved, saveCurrent, loadSaved, deleteSaved, newProject, applyPreset, presets, undo, redo, past, future } =
+    useProject();
   const [tab, setTab] = useState<"in" | "out">("in");
   const [open, setOpen] = useState(false);
   const result = calculate(project);
+
+  useUndoKeyboard(undo, redo);
 
   function onSave() {
     saveCurrent();
@@ -179,6 +183,8 @@ export function CalculatorApp() {
             )}
           </DialogContent>
         </Dialog>
+
+        <UndoDock undo={undo} redo={redo} canUndo={past.length > 0} canRedo={future.length > 0} />
       </div>
     </TooltipProvider>
   );

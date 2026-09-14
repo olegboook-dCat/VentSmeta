@@ -123,6 +123,11 @@ const PRESETS: { id: string; name: string; patch: Partial<Project> }[] = [
 interface State {
   project: Project;
   saved: SavedProject[];
+  // История правок проекта (не персистится)
+  past: Project[];
+  future: Project[];
+  _hk?: string;
+  _ht: number;
   patch: (p: Partial<Project>) => void;
   setCladding: (id: CladdingId) => void;
   applyPreset: (id: string) => void;
@@ -132,69 +137,116 @@ interface State {
   deleteSaved: (id: string) => void;
   result: () => CalcResult;
   presets: typeof PRESETS;
+  undo: () => void;
+  redo: () => void;
 }
+
+const HISTORY_LIMIT = 100;
+const COALESCE_MS = 700;
 
 export const useProject = create<State>()(
   persist(
-    (set, get) => ({
-      project: defaultProject(),
-      saved: [],
-      presets: PRESETS,
-      patch: (p) => set({ project: { ...get().project, ...p } }),
-      setCladding: (id) => {
-        const c = claddingById(id);
-        set({
-          project: {
-            ...get().project,
-            claddingId: id,
-            panelW: c.defaultW,
-            panelH: c.defaultH,
-            panelT: c.defaultT,
-            wastePercent: c.waste,
-            scheme: c.fixing === "rivet" || c.fixing === "hanger" ? "hv" : get().project.scheme === "hv" ? "vertical" : get().project.scheme,
-          },
-        });
-      },
-      applyPreset: (id) => {
-        const pr = PRESETS.find((x) => x.id === id);
-        if (!pr) return;
-        set({ project: { ...get().project, ...pr.patch } });
-      },
-      newProject: () =>
-        set({
-          project: {
-            ...defaultProject(),
-            id: uid("p"),
-            name: "Новый объект",
-            simpleArea: 0,
-            simplePerimeter: 0,
-            simpleHeight: 0,
-            simpleOpeningsArea: 0,
-            simpleOpeningsPerim: 0,
-            simpleSillLength: 0,
-          },
-        }),
-      saveCurrent: () => {
-        const p = get().project;
-        const entry: SavedProject = {
-          id: p.id.startsWith("p-") ? p.id : uid("p"),
-          name: p.name || "Без названия",
-          savedAt: Date.now(),
-          project: { ...p, id: p.id.startsWith("p-") ? p.id : uid("p") },
-        };
-        const rest = get().saved.filter((s) => s.id !== entry.id);
-        set({
-          saved: [entry, ...rest].slice(0, 20),
-          project: { ...p, id: entry.id },
-        });
-      },
-      loadSaved: (id) => {
-        const s = get().saved.find((x) => x.id === id);
-        if (s) set({ project: s.project });
-      },
-      deleteSaved: (id) => set({ saved: get().saved.filter((s) => s.id !== id) }),
-      result: () => calculate(get().project),
-    }),
-    { name: "ventsmeta-v1" },
+    (set, get) => {
+      // Зафиксировать текущий проект в истории ПЕРЕД изменением. coalesceKey
+      // склеивает серию быстрых правок одного поля в один шаг отмены.
+      const record = (coalesceKey?: string) => {
+        const st = get();
+        const now = Date.now();
+        if (coalesceKey && coalesceKey === st._hk && now - st._ht < COALESCE_MS) {
+          set({ _ht: now });
+          return;
+        }
+        set({ past: [...st.past, st.project].slice(-HISTORY_LIMIT), future: [], _hk: coalesceKey, _ht: now });
+      };
+      return {
+        project: defaultProject(),
+        saved: [],
+        presets: PRESETS,
+        past: [],
+        future: [],
+        _ht: 0,
+        patch: (p) => {
+          record(`patch:${Object.keys(p).sort().join(",")}`);
+          set({ project: { ...get().project, ...p } });
+        },
+        setCladding: (id) => {
+          record();
+          const c = claddingById(id);
+          set({
+            project: {
+              ...get().project,
+              claddingId: id,
+              panelW: c.defaultW,
+              panelH: c.defaultH,
+              panelT: c.defaultT,
+              wastePercent: c.waste,
+              scheme: c.fixing === "rivet" || c.fixing === "hanger" ? "hv" : get().project.scheme === "hv" ? "vertical" : get().project.scheme,
+            },
+          });
+        },
+        applyPreset: (id) => {
+          const pr = PRESETS.find((x) => x.id === id);
+          if (!pr) return;
+          record();
+          set({ project: { ...get().project, ...pr.patch } });
+        },
+        newProject: () => {
+          record();
+          set({
+            project: {
+              ...defaultProject(),
+              id: uid("p"),
+              name: "Новый объект",
+              simpleArea: 0,
+              simplePerimeter: 0,
+              simpleHeight: 0,
+              simpleOpeningsArea: 0,
+              simpleOpeningsPerim: 0,
+              simpleSillLength: 0,
+            },
+          });
+        },
+        saveCurrent: () => {
+          const p = get().project;
+          const entry: SavedProject = {
+            id: p.id.startsWith("p-") ? p.id : uid("p"),
+            name: p.name || "Без названия",
+            savedAt: Date.now(),
+            project: { ...p, id: p.id.startsWith("p-") ? p.id : uid("p") },
+          };
+          const rest = get().saved.filter((s) => s.id !== entry.id);
+          set({
+            saved: [entry, ...rest].slice(0, 20),
+            project: { ...p, id: entry.id },
+          });
+        },
+        loadSaved: (id) => {
+          const s = get().saved.find((x) => x.id === id);
+          if (s) {
+            record();
+            set({ project: s.project });
+          }
+        },
+        deleteSaved: (id) => set({ saved: get().saved.filter((s) => s.id !== id) }),
+        result: () => calculate(get().project),
+        undo: () => {
+          const st = get();
+          if (!st.past.length) return;
+          const prev = st.past[st.past.length - 1];
+          set({ project: prev, past: st.past.slice(0, -1), future: [...st.future, st.project], _hk: undefined });
+        },
+        redo: () => {
+          const st = get();
+          if (!st.future.length) return;
+          const nxt = st.future[st.future.length - 1];
+          set({ project: nxt, future: st.future.slice(0, -1), past: [...st.past, st.project], _hk: undefined });
+        },
+      };
+    },
+    {
+      name: "ventsmeta-v1",
+      // историю не сохраняем между сессиями
+      partialize: (s) => ({ project: s.project, saved: s.saved }),
+    },
   ),
 );
