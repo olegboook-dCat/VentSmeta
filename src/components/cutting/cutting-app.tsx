@@ -8,6 +8,7 @@ import { CutList } from "@/components/cutting/cut-list";
 import { Developments } from "@/components/cutting/developments";
 import { NestPreview } from "@/components/cutting/nest-preview";
 import { PageScroller } from "@/components/cutting/page-scroller";
+import { UndoDock } from "@/components/cutting/undo-dock";
 import { SHEET_STANDARDS } from "@/lib/cutting/types";
 import { useCutting } from "@/store/cutting";
 import { cn } from "@/lib/utils";
@@ -178,6 +179,7 @@ export function CuttingApp() {
           </main>
         </div>
         <PageScroller />
+        <UndoDock />
       </div>
     </TooltipProvider>
   );
