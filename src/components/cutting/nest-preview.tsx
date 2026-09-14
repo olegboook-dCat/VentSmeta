@@ -91,7 +91,7 @@ function SheetPreview({ sheet, scale }: { sheet: Sheet; scale: number }) {
   const pxW = Math.max(1, sheet.Wsheet * scale);
   const pxL = Math.max(1, sheet.L * scale);
   return (
-    <svg width={pxW.toFixed(1)} height={pxL.toFixed(1)} className="rounded bg-surface">
+    <svg width={pxW.toFixed(1)} height={pxL.toFixed(1)} className="bg-surface">
       <rect
         x={0}
         y={0}
