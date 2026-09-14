@@ -3,11 +3,11 @@ import { Link } from "@tanstack/react-router";
 import { Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CutList } from "@/components/cutting/cut-list";
 import { Developments } from "@/components/cutting/developments";
 import { NestPreview } from "@/components/cutting/nest-preview";
+import { PageScroller } from "@/components/cutting/page-scroller";
 import { SHEET_STANDARDS } from "@/lib/cutting/types";
 import { useCutting } from "@/store/cutting";
 import { cn } from "@/lib/utils";
@@ -88,16 +88,6 @@ export function CuttingApp() {
                   ))}
                 </select>
               </label>
-              <div className="mt-3 flex items-center gap-3">
-                <label className="text-sm">
-                  <span className="text-xs text-muted">Рез (пропил), мм</span>
-                  <Input inputMode="decimal" className="mt-1 h-9 w-24" value={fmt(s.kerf)} onChange={(e) => s.setKerf(parseNum(e.target.value))} />
-                </label>
-                <label className="mt-4 flex items-center gap-2 text-sm">
-                  <Switch checked={s.allowRotate} onCheckedChange={s.setAllowRotate} />
-                  поворот деталей
-                </label>
-              </div>
             </section>
 
             {/* Линейка: собрать ширину из кусков и «отсечь» */}
@@ -168,6 +158,7 @@ export function CuttingApp() {
             <NestPreview />
           </main>
         </div>
+        <PageScroller />
       </div>
     </TooltipProvider>
   );

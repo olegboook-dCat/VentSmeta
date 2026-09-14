@@ -8,6 +8,10 @@ import { GROUP_LABEL, MATERIALS } from "@/lib/facade/catalog";
 import { calculate } from "@/lib/facade/calc";
 import { money, num, qty } from "@/lib/facade/format";
 import type { CalcResult, Project, SpecGroup, SpecRow, SubsystemMaterial } from "@/lib/facade/types";
+import { buildCutPlan, kimPct, usedArea } from "@/lib/cutting/nesting";
+import { collectOtsechki } from "@/lib/cutting/model";
+import { SHEET_STANDARDS, widthsOfStandard } from "@/lib/cutting/types";
+import { useCutting } from "@/store/cutting";
 import { cn } from "@/lib/utils";
 
 const PIE_COLORS: Record<string, string> = {
@@ -89,6 +93,7 @@ export function ResultsPanel({ project }: { project: Project }) {
             Расход на 1 м² — по рабочей площади {num(result.netArea, 1)} м². Запас заложен в колонке «с запасом».
             Цены — средние по рынку РФ, 2026, без доставки.
           </p>
+          <CutSheetsSummary />
         </TabsContent>
 
         <TabsContent value="cost">
@@ -117,6 +122,63 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="mt-0.5 font-medium tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+// Листы раскроя в смете: количество, вид и размеры (по данным вкладки «Раскрой»).
+function CutSheetsSummary() {
+  const { cuts, sheetH, kerf, allowRotate, standardId } = useCutting();
+  const { sheets, oversize, label, L } = useMemo(() => {
+    const widths = widthsOfStandard(standardId);
+    const list = collectOtsechki(cuts);
+    const Lh = sheetH || 4000;
+    const plan = buildCutPlan(list, Lh, { kerf, allowRotate, widths });
+    const std = SHEET_STANDARDS.find((x) => x.id === standardId);
+    return { sheets: plan.sheets, oversize: plan.oversize, label: std?.label ?? "", L: Lh };
+  }, [cuts, sheetH, kerf, allowRotate, standardId]);
+
+  if (!sheets.length) return null;
+
+  const uniqW = Array.from(new Set(sheets.map((s) => s.Wsheet))).sort((a, b) => a - b);
+  const rows = uniqW.map((w) => ({ w, n: sheets.filter((s) => s.Wsheet === w).length }));
+  const totalUsed = sheets.reduce((s, sh) => s + usedArea(sh), 0);
+  const totalArea = sheets.reduce((s, sh) => s + sh.Wsheet * sh.L, 0);
+  const kim = kimPct(totalUsed, totalArea);
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-surface p-4">
+      <h3 className="font-display text-base font-medium">Листы для раскроя</h3>
+      <p className="mt-1 text-sm text-muted">По данным вкладки «Раскрой». Вид: {label || "—"}.</p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-xs uppercase tracking-wide text-subtle">
+            <tr>
+              <th className="py-2 text-left font-medium">Лист (размер, мм)</th>
+              <th className="py-2 text-right font-medium">Количество</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.w} className="border-t border-border">
+                <td className="py-2.5">
+                  {r.w} × {Math.round(L)}
+                </td>
+                <td className="py-2.5 text-right tabular-nums">{r.n} шт</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-border font-medium">
+              <td className="py-2.5">Всего листов · КИМ {kim}%</td>
+              <td className="py-2.5 text-right tabular-nums">{sheets.length} шт</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {oversize.length ? (
+        <p className="mt-2 text-sm text-warn">Не помещается на лист: {oversize.length} шт — уменьшите деталь или лист.</p>
+      ) : null}
     </div>
   );
 }
