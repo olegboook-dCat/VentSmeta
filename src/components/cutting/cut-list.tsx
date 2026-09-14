@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Copy, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Copy, GripVertical, Redo2, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { angAutoDeg } from "@/lib/cutting/geometry";
@@ -53,7 +53,19 @@ const ANG_LABEL: Record<AngEdge, string> = {
   both: "рез: обе",
 };
 
-function CutRow({ cut, index, total }: { cut: Cut; index: number; total: number }) {
+function CutRow({
+  cut,
+  index,
+  total,
+  dragging,
+  onDragStart,
+}: {
+  cut: Cut;
+  index: number;
+  total: number;
+  dragging: boolean;
+  onDragStart: (id: string, e: React.PointerEvent) => void;
+}) {
   const s = useCutting();
   const [openW, setOpenW] = useState(false);
   const [openH, setOpenH] = useState(false);
@@ -73,8 +85,20 @@ function CutRow({ cut, index, total }: { cut: Cut; index: number; total: number 
   const angShown = cut.angMode === "corner" ? angBase * 2 : angBase;
 
   return (
-    <li className="rounded-lg border border-border bg-surface p-2.5">
+    <li
+      data-cut-id={cut.id}
+      className={cn("rounded-lg border border-border bg-surface p-2.5", dragging && "opacity-60 ring-2 ring-ring")}
+    >
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-label="Перетащить"
+          title="Перетащите, чтобы поменять порядок"
+          className="flex-none cursor-grab touch-none rounded p-1 text-subtle active:cursor-grabbing"
+          onPointerDown={(e) => onDragStart(cut.id, e)}
+        >
+          <GripVertical className="size-4" />
+        </button>
         <span className="inline-flex size-6 flex-none items-center justify-center rounded bg-accent-soft text-xs font-semibold text-accent">
           {index + 1}
         </span>
@@ -82,7 +106,7 @@ function CutRow({ cut, index, total }: { cut: Cut; index: number; total: number 
           className="h-9 w-32 flex-none"
           placeholder="Название"
           value={cut.name}
-          onChange={(e) => s.updateCut(cut.id, { name: e.target.value })}
+          onChange={(e) => s.updateCut(cut.id, { name: e.target.value }, `name-${cut.id}`)}
         />
         <span className="text-xs text-muted">= {cutArea(cut).toFixed(2)} м²</span>
         <span className="ml-auto flex items-center gap-1.5 text-sm">
@@ -91,7 +115,7 @@ function CutRow({ cut, index, total }: { cut: Cut; index: number; total: number 
           <span className="w-16">
             <NumInput
               value={hasHSegs ? height : cut.height}
-              onChange={(v) => s.updateCut(cut.id, { height: v })}
+              onChange={(v) => s.updateCut(cut.id, { height: v }, `height-${cut.id}`)}
               readOnly={hasHSegs}
               placeholder="выс."
               className={cn("h-9", overH && "border-warn text-warn")}
@@ -231,12 +255,68 @@ export function CutList() {
   const cuts = useCutting((st) => st.cuts);
   const addCut = useCutting((st) => st.addCut);
   const clearAll = useCutting((st) => st.clearAll);
+  const undo = useCutting((st) => st.undo);
+  const redo = useCutting((st) => st.redo);
+  const canUndo = useCutting((st) => st.past.length > 0);
+  const canRedo = useCutting((st) => st.future.length > 0);
+
+  const listRef = useRef<HTMLUListElement>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const snappedRef = useRef(false);
+
+  function onDragStart(id: string, e: React.PointerEvent) {
+    e.preventDefault();
+    snappedRef.current = false;
+    setDragId(id);
+  }
+
+  // Перетаскивание отсечки: следим за указателем (мышь/палец), вычисляем позицию
+  // среди остальных строк и переставляем «на лету». Точку истории ставим один раз.
+  useEffect(() => {
+    if (!dragId) return;
+    const st = useCutting.getState;
+    const onMove = (e: PointerEvent) => {
+      const ul = listRef.current;
+      if (!ul) return;
+      e.preventDefault();
+      const items = [...ul.querySelectorAll<HTMLElement>("[data-cut-id]")];
+      let desired = 0;
+      for (const el of items) {
+        if (el.dataset.cutId === dragId) continue;
+        const r = el.getBoundingClientRect();
+        if (e.clientY > r.top + r.height / 2) desired++;
+      }
+      const cur = st().cuts.findIndex((c) => c.id === dragId);
+      if (cur !== desired) {
+        if (!snappedRef.current) {
+          st().snapshot();
+          snappedRef.current = true;
+        }
+        st().moveCutToIndex(dragId, desired);
+      }
+    };
+    const onUp = () => setDragId(null);
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [dragId]);
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-base">Отсечки ({cuts.length})</h2>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-1.5">
+          <Button type="button" variant="ghost" size="icon" className="size-9" disabled={!canUndo} onClick={undo} aria-label="Отменить" title="Отменить (Ctrl+Z)">
+            <Undo2 className="size-4" />
+          </Button>
+          <Button type="button" variant="ghost" size="icon" className="size-9" disabled={!canRedo} onClick={redo} aria-label="Повторить" title="Повторить (Ctrl+Shift+Z)">
+            <Redo2 className="size-4" />
+          </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => addCut()}>
             ＋ отсечка
           </Button>
@@ -248,9 +328,16 @@ export function CutList() {
         </div>
       </div>
       {cuts.length ? (
-        <ul className="mt-3 flex flex-col gap-2">
+        <ul ref={listRef} className="mt-3 flex flex-col gap-2">
           {cuts.map((cut, i) => (
-            <CutRow key={cut.id} cut={cut} index={i} total={cuts.length} />
+            <CutRow
+              key={cut.id}
+              cut={cut}
+              index={i}
+              total={cuts.length}
+              dragging={dragId === cut.id}
+              onDragStart={onDragStart}
+            />
           ))}
         </ul>
       ) : (
