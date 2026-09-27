@@ -80,6 +80,28 @@ export interface Project {
   vatOn: boolean;
   vatPercent: number;
   priceOverrides: Record<string, number>;
+  discountMaterialsPct: number;
+  discountLaborPct: number;
+  partnerByGroup: Partial<Record<SpecGroup, string>>;
+}
+
+// Партнёр/магазин (заводит пользователь; трекинг не ведётся — только показ).
+export interface Partner {
+  id: string;
+  name: string;
+  contact: string; // телефон / город / сайт
+  link: string; // реф-ссылка
+  promo: string; // промокод / метка
+}
+
+// Сценарий прайса: снимок переопределений цен и скидок с подписью.
+export interface PricePreset {
+  id: string;
+  name: string;
+  savedAt: number;
+  overrides: Record<string, number>;
+  discountMaterialsPct: number;
+  discountLaborPct: number;
 }
 
 export interface SpecRow {
@@ -118,9 +140,11 @@ export interface CalcResult {
   windPressure: number;
   cityName: string;
   rows: SpecRow[];
-  materialsSum: number;
-  laborSum: number;
-  subtotal: number;
+  materialsSum: number; // до скидки
+  laborSum: number; // до скидки
+  discountMaterialsSum: number;
+  discountLaborSum: number;
+  subtotal: number; // после скидок, без НДС
   vatSum: number;
   total: number;
   perM2: number;

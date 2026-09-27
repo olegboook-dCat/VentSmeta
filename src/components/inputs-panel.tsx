@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberField, SelectField, ToggleRow } from "@/components/fields";
+import { PricingPanel } from "@/components/pricing-panel";
 import { CLADDINGS, CITIES, INSULATIONS, MATERIALS, SCHEMES, WALL_TYPES } from "@/lib/facade/catalog";
 import { uid } from "@/lib/facade/format";
 import type { CladdingId, InsulationKind, Scheme, SubsystemMaterial } from "@/lib/facade/types";
@@ -192,6 +193,10 @@ export function InputsPanel() {
           <ToggleRow label="Леса и люльки" hint="Грубая оценка. На высотных объектах считают отдельно." checked={p.includeScaffold} onChange={(v) => patch({ includeScaffold: v })} />
           <ToggleRow label={`НДС ${p.vatPercent}%`} checked={p.vatOn} onChange={(v) => patch({ vatOn: v })} />
         </div>
+      </Section>
+
+      <Section title="Цены, скидки и партнёры" n="07">
+        <PricingPanel />
       </Section>
     </div>
   );

@@ -12,6 +12,7 @@ import { buildCutPlan, kimPct, usedArea } from "@/lib/cutting/nesting";
 import { collectOtsechki } from "@/lib/cutting/model";
 import { SHEET_STANDARDS, widthsOfStandard } from "@/lib/cutting/types";
 import { useCutting } from "@/store/cutting";
+import { useProject } from "@/store/project";
 import { cn } from "@/lib/utils";
 
 const PIE_COLORS: Record<string, string> = {
@@ -89,11 +90,13 @@ export function ResultsPanel({ project }: { project: Project }) {
               </tfoot>
             </table>
           </div>
+          <CostSummary result={result} project={project} />
           <p className="mt-3 text-xs text-muted">
             Расход на 1 м² — по рабочей площади {num(result.netArea, 1)} м². Запас заложен в колонке «с запасом».
-            Цены — средние по рынку РФ, 2026, без доставки.
+            Цены — средние по рынку РФ, 2026, без доставки. Любую цену можно поправить прямо в таблице.
           </p>
           <CutSheetsSummary />
+          <PartnerBlock />
         </TabsContent>
 
         <TabsContent value="cost">
@@ -122,6 +125,66 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="mt-0.5 font-medium tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+function SummRow({ label, value, accent, bold }: { label: string; value: string; accent?: boolean; bold?: boolean }) {
+  return (
+    <div className={cn("flex items-center justify-between py-0.5", bold && "text-base")}>
+      <span className={cn("text-muted", accent && "text-accent", bold && "font-medium text-ink")}>{label}</span>
+      <span className={cn("tabular-nums", accent && "text-accent", bold && "font-display font-medium text-ink")}>{value}</span>
+    </div>
+  );
+}
+
+// Итоги сметы со скидками по блокам.
+function CostSummary({ result, project }: { result: CalcResult; project: Project }) {
+  return (
+    <div className="mt-3 rounded-xl border border-border bg-surface p-4 text-sm">
+      <SummRow label="Материалы" value={money(result.materialsSum)} />
+      {result.discountMaterialsSum > 0 ? (
+        <SummRow label={`Скидка на материалы −${num(project.discountMaterialsPct, 0)}%`} value={`−${money(result.discountMaterialsSum)}`} accent />
+      ) : null}
+      {result.laborSum > 0 ? <SummRow label="Работы" value={money(result.laborSum)} /> : null}
+      {result.discountLaborSum > 0 ? (
+        <SummRow label={`Скидка на работы −${num(project.discountLaborPct, 0)}%`} value={`−${money(result.discountLaborSum)}`} accent />
+      ) : null}
+      <div className="my-1.5 border-t border-border" />
+      <SummRow label="Итого без НДС" value={money(result.subtotal)} />
+      {result.vatSum > 0 ? <SummRow label={`НДС ${num(project.vatPercent, 0)}%`} value={money(result.vatSum)} /> : null}
+      <div className="my-1.5 border-t border-border" />
+      <SummRow label="Итого" value={money(result.total)} bold />
+    </div>
+  );
+}
+
+// Блок поставщиков/партнёров для сметы (в т.ч. на печати).
+function PartnerBlock() {
+  const partners = useProject((s) => s.partners);
+  const pbg = useProject((s) => s.project.partnerByGroup ?? {});
+  const entries = (Object.keys(pbg) as SpecGroup[])
+    .map((g) => ({ g, partner: partners.find((p) => p.id === pbg[g]) }))
+    .filter((e): e is { g: SpecGroup; partner: NonNullable<typeof e.partner> } => Boolean(e.partner));
+  if (!entries.length) return null;
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-surface p-4">
+      <h3 className="font-display text-base font-medium">Поставщики / партнёры</h3>
+      <ul className="mt-2 flex flex-col gap-1.5 text-sm">
+        {entries.map(({ g, partner }) => (
+          <li key={g} className="flex flex-wrap items-baseline gap-x-2">
+            <span className="text-xs uppercase tracking-wide text-subtle">{GROUP_LABEL[g]}</span>
+            <b className="text-ink">{partner.name}</b>
+            {partner.contact ? <span className="text-muted">· {partner.contact}</span> : null}
+            {partner.promo ? <span className="text-accent">· промокод {partner.promo}</span> : null}
+            {partner.link ? (
+              <a href={partner.link} target="_blank" rel="noreferrer" className="text-accent underline print:no-underline">
+                {partner.link}
+              </a>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -209,11 +272,55 @@ function GroupBlock({ group }: { group: { id: string; label: string; items: Spec
           <td className="px-3 py-2 text-right tabular-nums">{qty(r.qty)}</td>
           <td className="px-3 py-2 text-right tabular-nums">{qty(r.qtyReserve)}</td>
           <td className="px-3 py-2 text-right tabular-nums text-muted">{num(r.perM2, 2)}</td>
-          <td className="px-3 py-2 text-right tabular-nums">{money(r.price)}</td>
+          <td className="px-3 py-2 text-right tabular-nums">
+            <PriceCell rowId={r.id} price={r.price} />
+          </td>
           <td className="px-3 py-2 text-right tabular-nums font-medium">{money(r.sum)}</td>
         </tr>
       ))}
     </>
+  );
+}
+
+function priceStr(v: string): number {
+  const n = Number(String(v).replace(",", ".").replace(/\s+/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Редактируемая цена позиции (пишет priceOverrides; ↺ — вернуть базовую).
+function PriceCell({ rowId, price }: { rowId: string; price: number }) {
+  const setPrice = useProject((s) => s.setPrice);
+  const resetPrice = useProject((s) => s.resetPrice);
+  const overridden = useProject((s) => rowId in (s.project.priceOverrides ?? {}));
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <span className="inline-flex items-center justify-end gap-1">
+      <input
+        inputMode="decimal"
+        aria-label="Цена"
+        className={cn(
+          "w-20 rounded-md border px-2 py-1 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:border-0 print:bg-transparent print:px-0",
+          overridden ? "border-accent bg-accent-soft/50 font-medium" : "border-border bg-surface",
+        )}
+        value={draft ?? String(Math.round(price))}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setPrice(rowId, priceStr(e.target.value));
+        }}
+        onBlur={() => setDraft(null)}
+      />
+      {overridden ? (
+        <button
+          type="button"
+          className="text-subtle hover:text-ink print:hidden"
+          title="Вернуть базовую цену"
+          aria-label="Вернуть базовую цену"
+          onClick={() => resetPrice(rowId)}
+        >
+          ↺
+        </button>
+      ) : null}
+    </span>
   );
 }
 

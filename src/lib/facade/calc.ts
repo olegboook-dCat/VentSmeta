@@ -573,7 +573,11 @@ export function calculate(project: Project): CalcResult {
 
   const materialsSum = rows.filter((r) => r.group !== "labor").reduce((s, r) => s + r.sum, 0);
   const laborSum = rows.filter((r) => r.group === "labor").reduce((s, r) => s + r.sum, 0);
-  const subtotal = materialsSum + laborSum;
+  const dm = Math.min(100, Math.max(0, project.discountMaterialsPct || 0)) / 100;
+  const dl = Math.min(100, Math.max(0, project.discountLaborPct || 0)) / 100;
+  const discountMaterialsSum = materialsSum * dm;
+  const discountLaborSum = laborSum * dl;
+  const subtotal = materialsSum - discountMaterialsSum + (laborSum - discountLaborSum);
   const vatSum = project.vatOn ? subtotal * (project.vatPercent / 100) : 0;
   const total = subtotal + vatSum;
   const totalWeight = rows.reduce((s, r) => s + r.weight, 0);
@@ -606,6 +610,8 @@ export function calculate(project: Project): CalcResult {
     rows,
     materialsSum,
     laborSum,
+    discountMaterialsSum,
+    discountLaborSum,
     subtotal,
     vatSum,
     total,
