@@ -3,7 +3,15 @@ import { persist } from "zustand/middleware";
 import { calculate } from "@/lib/facade/calc";
 import { claddingById } from "@/lib/facade/catalog";
 import { uid } from "@/lib/facade/format";
-import type { CalcResult, CladdingId, Project, SavedProject } from "@/lib/facade/types";
+import type {
+  CalcResult,
+  CladdingId,
+  Partner,
+  PricePreset,
+  Project,
+  SavedProject,
+  SpecGroup,
+} from "@/lib/facade/types";
 
 export const defaultProject = (): Project => ({
   id: "demo",
@@ -51,6 +59,9 @@ export const defaultProject = (): Project => ({
   vatOn: true,
   vatPercent: 22,
   priceOverrides: {},
+  discountMaterialsPct: 0,
+  discountLaborPct: 0,
+  partnerByGroup: {},
 });
 
 const PRESETS: { id: string; name: string; patch: Partial<Project> }[] = [
@@ -123,6 +134,8 @@ const PRESETS: { id: string; name: string; patch: Partial<Project> }[] = [
 interface State {
   project: Project;
   saved: SavedProject[];
+  pricePresets: PricePreset[]; // сценарии прайса (переиспользуются между проектами)
+  partners: Partner[]; // магазины/партнёры (заводит пользователь)
   // История правок проекта (не персистится)
   past: Project[];
   future: Project[];
@@ -139,6 +152,22 @@ interface State {
   presets: typeof PRESETS;
   undo: () => void;
   redo: () => void;
+
+  // Цены и скидки (правки проекта — попадают в историю через patch)
+  setPrice: (rowId: string, value: number) => void;
+  resetPrice: (rowId: string) => void;
+  setDiscount: (kind: "materials" | "labor", pct: number) => void;
+  assignPartner: (group: SpecGroup, partnerId: string) => void;
+
+  // Сценарии прайса
+  savePricePreset: (name: string) => void;
+  applyPricePreset: (id: string) => void;
+  deletePricePreset: (id: string) => void;
+
+  // Партнёры
+  addPartner: (p: Omit<Partner, "id">) => void;
+  updatePartner: (id: string, patch: Partial<Partner>) => void;
+  removePartner: (id: string) => void;
 }
 
 const HISTORY_LIMIT = 100;
@@ -161,6 +190,8 @@ export const useProject = create<State>()(
       return {
         project: defaultProject(),
         saved: [],
+        pricePresets: [],
+        partners: [],
         presets: PRESETS,
         past: [],
         future: [],
@@ -241,12 +272,67 @@ export const useProject = create<State>()(
           const nxt = st.future[st.future.length - 1];
           set({ project: nxt, future: st.future.slice(0, -1), past: [...st.past, st.project], _hk: undefined });
         },
+
+        // --- Цены / скидки / партнёры (через patch → попадают в историю) ---
+        setPrice: (rowId, value) =>
+          get().patch({ priceOverrides: { ...get().project.priceOverrides, [rowId]: Math.max(0, value) } }),
+        resetPrice: (rowId) => {
+          const o = { ...get().project.priceOverrides };
+          delete o[rowId];
+          get().patch({ priceOverrides: o });
+        },
+        setDiscount: (kind, pct) => {
+          const v = Math.min(100, Math.max(0, pct || 0));
+          get().patch(kind === "materials" ? { discountMaterialsPct: v } : { discountLaborPct: v });
+        },
+        assignPartner: (group, partnerId) => {
+          const pbg = { ...get().project.partnerByGroup };
+          if (partnerId) pbg[group] = partnerId;
+          else delete pbg[group];
+          get().patch({ partnerByGroup: pbg });
+        },
+
+        // --- Сценарии прайса (снимок переопределений + скидок) ---
+        savePricePreset: (name) => {
+          const p = get().project;
+          const entry: PricePreset = {
+            id: uid("pp"),
+            name: name.trim() || new Date().toLocaleDateString("ru-RU"),
+            savedAt: Date.now(),
+            overrides: { ...p.priceOverrides },
+            discountMaterialsPct: p.discountMaterialsPct,
+            discountLaborPct: p.discountLaborPct,
+          };
+          set({ pricePresets: [entry, ...get().pricePresets].slice(0, 5) });
+        },
+        applyPricePreset: (id) => {
+          const pr = get().pricePresets.find((x) => x.id === id);
+          if (!pr) return;
+          get().patch({
+            priceOverrides: { ...pr.overrides },
+            discountMaterialsPct: pr.discountMaterialsPct,
+            discountLaborPct: pr.discountLaborPct,
+          });
+        },
+        deletePricePreset: (id) => set({ pricePresets: get().pricePresets.filter((x) => x.id !== id) }),
+
+        // --- Партнёры / магазины ---
+        addPartner: (p) => set({ partners: [...get().partners, { ...p, id: uid("pt") }] }),
+        updatePartner: (id, patch) =>
+          set({ partners: get().partners.map((x) => (x.id === id ? { ...x, ...patch } : x)) }),
+        removePartner: (id) => {
+          // снять назначения удаляемого партнёра в текущем проекте
+          const pbg = { ...get().project.partnerByGroup };
+          for (const g of Object.keys(pbg) as SpecGroup[]) if (pbg[g] === id) delete pbg[g];
+          get().patch({ partnerByGroup: pbg });
+          set({ partners: get().partners.filter((x) => x.id !== id) });
+        },
       };
     },
     {
       name: "ventsmeta-v1",
       // историю не сохраняем между сессиями
-      partialize: (s) => ({ project: s.project, saved: s.saved }),
+      partialize: (s) => ({ project: s.project, saved: s.saved, pricePresets: s.pricePresets, partners: s.partners }),
     },
   ),
 );
