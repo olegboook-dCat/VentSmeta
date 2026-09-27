@@ -255,7 +255,7 @@ export const useProject = create<State>()(
           const s = get().saved.find((x) => x.id === id);
           if (s) {
             record();
-            set({ project: s.project });
+            set({ project: { ...defaultProject(), ...s.project } });
           }
         },
         deleteSaved: (id) => set({ saved: get().saved.filter((s) => s.id !== id) }),
@@ -333,6 +333,19 @@ export const useProject = create<State>()(
       name: "ventsmeta-v1",
       // историю не сохраняем между сессиями
       partialize: (s) => ({ project: s.project, saved: s.saved, pricePresets: s.pricePresets, partners: s.partners }),
+      // Миграция старых данных: дополняем проект недостающими полями (скидки,
+      // партнёры и т.п.), иначе на старом localStorage поля были undefined.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<State>;
+        return {
+          ...current,
+          ...p,
+          project: { ...defaultProject(), ...(p.project ?? {}) },
+          saved: p.saved ?? [],
+          pricePresets: p.pricePresets ?? [],
+          partners: p.partners ?? [],
+        };
+      },
     },
   ),
 );
