@@ -162,7 +162,10 @@ function CostSummary({ result, project }: { result: CalcResult; project: Project
 // Блок поставщиков/партнёров для сметы (в т.ч. на печати).
 function PartnerBlock() {
   const partners = useProject((s) => s.partners);
-  const pbg = useProject((s) => s.project.partnerByGroup ?? {});
+  // Селектор возвращает сырое значение (стабильная ссылка), дефолт — в теле:
+  // иначе на старых данных без поля `?? {}` создавал новый объект каждый рендер.
+  const pbgRaw = useProject((s) => s.project.partnerByGroup);
+  const pbg = pbgRaw ?? {};
   const entries = (Object.keys(pbg) as SpecGroup[])
     .map((g) => ({ g, partner: partners.find((p) => p.id === pbg[g]) }))
     .filter((e): e is { g: SpecGroup; partner: NonNullable<typeof e.partner> } => Boolean(e.partner));
