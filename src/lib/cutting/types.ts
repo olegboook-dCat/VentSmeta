@@ -95,3 +95,15 @@ export function widthsOfStandard(standardId: string): number[] {
 export function defaultAng(): Ang {
   return { edge: "none", deg: 0, corner: "top", axis: "height", w2: 0 };
 }
+
+// Сохраняемый снимок раскроя (привязывается к объекту сметы).
+export interface CuttingSnapshot {
+  cuts: Cut[];
+  entries: number[];
+  groupHeight: number;
+  sheetW: number;
+  sheetH: number;
+  kerf: number;
+  allowRotate: boolean;
+  standardId: string;
+}

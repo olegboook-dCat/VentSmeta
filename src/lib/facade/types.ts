@@ -157,4 +157,5 @@ export interface SavedProject {
   name: string;
   savedAt: number;
   project: Project;
+  cutting?: import("@/lib/cutting/types").CuttingSnapshot;
 }

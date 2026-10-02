@@ -1,17 +1,11 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { FolderOpen, Printer, Save, Scissors, Trash2 } from "lucide-react";
+import { Printer, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { InputsPanel } from "@/components/inputs-panel";
 import { ResultsPanel } from "@/components/results-panel";
+import { ProjectsControls } from "@/components/projects-controls";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UndoDock, useUndoKeyboard } from "@/components/cutting/undo-dock";
 import { money, num } from "@/lib/facade/format";
@@ -20,22 +14,15 @@ import { useProject } from "@/store/project";
 import { cn } from "@/lib/utils";
 
 export function CalculatorApp() {
-  const { project, saved, saveCurrent, loadSaved, deleteSaved, newProject, applyPreset, presets, undo, redo, past, future } =
-    useProject();
+  const { project, newProject, applyPreset, presets, undo, redo, past, future } = useProject();
   const [tab, setTab] = useState<"in" | "out">("in");
-  const [open, setOpen] = useState(false);
   const result = calculate(project);
 
   useUndoKeyboard(undo, redo);
 
-  function onSave() {
-    saveCurrent();
-    toast.success("Проект сохранён на этом устройстве");
-  }
-
   function onNew() {
     newProject();
-    toast.message("Новый расчёт");
+    toast.message("Новый объект — смета и раскрой очищены");
     setTab("in");
   }
 
@@ -60,12 +47,7 @@ export function CalculatorApp() {
                 <Scissors />
               </Link>
             </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Проекты">
-              <FolderOpen />
-            </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={onSave} aria-label="Сохранить">
-              <Save />
-            </Button>
+            <ProjectsControls />
             <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => window.print()}>
               <Printer />
               Печать
@@ -140,49 +122,6 @@ export function CalculatorApp() {
             <span className="text-sm text-muted tabular-nums">{money(result.perM2)}/м² · {num(result.netArea, 0)} м²</span>
           </button>
         </div>
-
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Сохранённые проекты</DialogTitle>
-              <DialogDescription>Хранятся только в этом браузере, без аккаунта.</DialogDescription>
-            </DialogHeader>
-            {saved.length === 0 ? (
-              <p className="text-sm text-muted">Пока пусто. Нажмите «Сохранить», чтобы не потерять расчёт.</p>
-            ) : (
-              <ul className="flex max-h-80 flex-col gap-1 overflow-auto">
-                {saved.map((s) => (
-                  <li key={s.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
-                    <button
-                      type="button"
-                      className="min-w-0 flex-1 text-left"
-                      onClick={() => {
-                        loadSaved(s.id);
-                        setOpen(false);
-                        toast.message("Проект открыт");
-                      }}
-                    >
-                      <span className="block truncate text-sm font-medium">{s.name}</span>
-                      <span className="text-xs text-muted">
-                        {new Date(s.savedAt).toLocaleString("ru-RU")}
-                      </span>
-                    </button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-9"
-                      onClick={() => deleteSaved(s.id)}
-                      aria-label="Удалить"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </DialogContent>
-        </Dialog>
 
         <UndoDock undo={undo} redo={redo} canUndo={past.length > 0} canRedo={future.length > 0} />
       </div>

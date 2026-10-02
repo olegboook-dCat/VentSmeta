@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Scissors } from "lucide-react";
+import { FilePlus2, Scissors } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ProjectsControls } from "@/components/projects-controls";
 import { CutList } from "@/components/cutting/cut-list";
 import { Developments } from "@/components/cutting/developments";
 import { NestPreview } from "@/components/cutting/nest-preview";
@@ -11,6 +13,7 @@ import { PageScroller } from "@/components/cutting/page-scroller";
 import { UndoDock, useUndoKeyboard } from "@/components/cutting/undo-dock";
 import { SHEET_STANDARDS } from "@/lib/cutting/types";
 import { useCutting } from "@/store/cutting";
+import { useProject } from "@/store/project";
 import { cn } from "@/lib/utils";
 
 function parseNum(v: string): number {
@@ -21,6 +24,7 @@ const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 
 export function CuttingApp() {
   const s = useCutting();
+  const newProject = useProject((st) => st.newProject);
   const [entryDraft, setEntryDraft] = useState("");
   const groupSum = s.entries.reduce((a, v) => a + v, 0);
 
@@ -44,6 +48,20 @@ export function CuttingApp() {
               <p className="font-display text-sm font-medium tracking-tight sm:text-base">Раскрой</p>
               <p className="truncate text-xs text-muted">Замер, оптимизация листа и чертёж на станок</p>
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Новый объект"
+              title="Новый объект (очистить смету и раскрой)"
+              onClick={() => {
+                newProject();
+                toast.message("Новый объект");
+              }}
+            >
+              <FilePlus2 />
+            </Button>
+            <ProjectsControls />
             <nav className="flex items-center gap-1 rounded-lg bg-surface-2 p-1 text-sm">
               <Link to="/" className="rounded-md px-3 py-1.5 font-medium text-muted hover:text-ink">
                 Смета

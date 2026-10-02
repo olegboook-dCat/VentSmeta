@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { uid } from "@/lib/facade/format";
-import { defaultAng, type Ang, type Cut } from "@/lib/cutting/types";
+import { defaultAng, type Ang, type Cut, type CuttingSnapshot } from "@/lib/cutting/types";
 
 // Снимок редактируемого «документа» для истории undo/redo.
 interface HistDoc {
@@ -69,6 +69,11 @@ interface State {
   snapshot: () => void; // зафиксировать точку (перед серией тихих изменений)
   undo: () => void;
   redo: () => void;
+
+  // Привязка к объекту сметы (Вариант A): снимок / загрузка / новый
+  snapshotData: () => CuttingSnapshot;
+  loadData: (data?: CuttingSnapshot) => void;
+  newCutting: () => void;
 }
 
 function newCut(partial?: Partial<Cut>): Cut {
@@ -264,6 +269,39 @@ export const useCutting = create<State>()(
         },
 
         snapshot: () => record(),
+
+        snapshotData: () => {
+          const s = get();
+          return {
+            cuts: structuredClone(s.cuts),
+            entries: [...s.entries],
+            groupHeight: s.groupHeight,
+            sheetW: s.sheetW,
+            sheetH: s.sheetH,
+            kerf: s.kerf,
+            allowRotate: s.allowRotate,
+            standardId: s.standardId,
+          };
+        },
+        loadData: (d) => {
+          const s = get();
+          set({
+            cuts: d?.cuts ? structuredClone(d.cuts) : [],
+            entries: d?.entries ? [...d.entries] : [],
+            groupHeight: d?.groupHeight ?? 0,
+            sheetW: d?.sheetW ?? s.sheetW,
+            sheetH: d?.sheetH ?? s.sheetH,
+            kerf: d?.kerf ?? s.kerf,
+            allowRotate: d?.allowRotate ?? s.allowRotate,
+            standardId: d?.standardId ?? s.standardId,
+            past: [],
+            future: [],
+            _hk: undefined,
+          });
+        },
+        // Новый объект: обнуляем детализацию, настройки листа оставляем.
+        newCutting: () => set({ cuts: [], entries: [], groupHeight: 0, past: [], future: [], _hk: undefined }),
+
         undo: () => {
           const st = get();
           if (!st.past.length) return;
