@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { calculate } from "@/lib/facade/calc";
 import { claddingById } from "@/lib/facade/catalog";
 import { uid } from "@/lib/facade/format";
+import { useCutting } from "@/store/cutting";
 import type {
   CalcResult,
   CladdingId,
@@ -236,6 +237,7 @@ export const useProject = create<State>()(
               simpleSillLength: 0,
             },
           });
+          useCutting.getState().newCutting(); // новый объект — пустой раскрой
         },
         saveCurrent: () => {
           const p = get().project;
@@ -244,6 +246,7 @@ export const useProject = create<State>()(
             name: p.name || "Без названия",
             savedAt: Date.now(),
             project: { ...p, id: p.id.startsWith("p-") ? p.id : uid("p") },
+            cutting: useCutting.getState().snapshotData(),
           };
           const rest = get().saved.filter((s) => s.id !== entry.id);
           set({
@@ -256,6 +259,7 @@ export const useProject = create<State>()(
           if (s) {
             record();
             set({ project: { ...defaultProject(), ...s.project } });
+            useCutting.getState().loadData(s.cutting); // восстановить раскрой объекта
           }
         },
         deleteSaved: (id) => set({ saved: get().saved.filter((s) => s.id !== id) }),
